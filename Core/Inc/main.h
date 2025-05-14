@@ -61,6 +61,7 @@ void Error_Handler(void);
 #define LASER_SHUT_GPIO_Port GPIOB
 #define LASER_INT_Pin GPIO_PIN_5
 #define LASER_INT_GPIO_Port GPIOB
+#define LASER_INT_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 
