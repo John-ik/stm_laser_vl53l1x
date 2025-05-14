@@ -63,6 +63,8 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
 /* USER CODE END 0 */
 
 /**
@@ -107,8 +109,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_Delay(100);
 
-  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_SET); // turn on
   DEBUG_transmit_str("booting laser");
+  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_SET); // turn on
   uint8_t state = 1;
   while(state){
     status = VL53L1X_BootState(dev, &state);
@@ -119,9 +121,9 @@ int main(void)
   DEBUG_transmit_str("inited laser");
   
   
-  status = VL53L1X_SetDistanceMode(dev, 1); /* 1=short, 2=long */
-  status = VL53L1X_SetTimingBudgetInMs(dev, 100); /* in ms possible values [20, 50, 100, 200, 500] */
-  status = VL53L1X_SetInterMeasurementInMs(dev, 100); /* in ms, IM must be > = TB */
+  status = VL53L1X_SetDistanceMode(dev, 2); /* 1=short, 2=long */
+  // status = VL53L1X_SetTimingBudgetInMs(dev, 200); /* in ms possible values [20, 50, 100, 200, 500] */
+  status = VL53L1X_SetInterMeasurementInMs(dev, 500); /* in ms, IM must be > = TB */
   DEBUG_transmit_str("configured laser");
   /* USER CODE END 2 */
 
