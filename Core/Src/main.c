@@ -24,7 +24,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "VL53L1X_api.h"
 
+#include "stdlib.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,7 +37,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#include "debug.h"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,7 +48,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+uint16_t dev = 0x52;
+int status = 0;
 
+char uart_buf[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,7 +73,15 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  uint8_t byteData, sensorState=0;
+  uint16_t wordData;
+  uint8_t ToFSensor = 1; // 0=Left, 1=Center(default), 2=Right
+  uint16_t Distance;
+  uint16_t SignalRate;
+  uint16_t AmbientRate;
+  uint16_t SpadNum; 
+  uint8_t RangeStatus;
+  uint8_t data_ready = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -91,16 +105,54 @@ int main(void)
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  HAL_Delay(100);
 
+  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_SET); // turn on
+  DEBUG_transmit_str("booting laser");
+  uint8_t state = 1;
+  while(state){
+    status = VL53L1X_BootState(dev, &state);
+    DEBUG_transmit_fmt("status = %d", status);
+    HAL_Delay(5);
+  }
+  VL53L1X_SensorInit(dev);
+  DEBUG_transmit_str("inited laser");
+  
+  
+  status = VL53L1X_SetDistanceMode(dev, 1); /* 1=short, 2=long */
+  status = VL53L1X_SetTimingBudgetInMs(dev, 100); /* in ms possible values [20, 50, 100, 200, 500] */
+  status = VL53L1X_SetInterMeasurementInMs(dev, 100); /* in ms, IM must be > = TB */
+  DEBUG_transmit_str("configured laser");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  status = VL53L1X_StartRanging(dev);
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    while(data_ready == 0){
+      status = VL53L1X_CheckForDataReady(dev, &data_ready);
+      HAL_Delay(2);
+    }
+    data_ready = 0;
+    status = VL53L1X_GetRangeStatus(dev, &RangeStatus);
+	  status = VL53L1X_GetDistance(dev, &Distance);
+	  status = VL53L1X_GetSignalRate(dev, &SignalRate);
+	  status = VL53L1X_GetAmbientRate(dev, &AmbientRate);
+	  status = VL53L1X_GetSpadNb(dev, &SpadNum);
+	  status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
+	  sprintf(uart_buf ,  "\n-----\n"
+                        "range_status = %u\n"
+                        "distance = %u\n"
+                        "signal_rate = %u\n"
+                        "ambient_rate = %u\n"
+                        "spad_num = %u\n",
+            RangeStatus, Distance, SignalRate, AmbientRate,SpadNum
+    );
+    HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
   }
   /* USER CODE END 3 */
 }
