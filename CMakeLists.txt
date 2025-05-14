@@ -56,6 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    platform
     STSW-IMG009/STSW-IMG009_v3.5.4/API/core
     STSW-IMG009/STSW-IMG009_v3.5.4/API/platform
 )
