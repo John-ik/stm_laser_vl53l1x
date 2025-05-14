@@ -64,6 +64,20 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 
+uint8_t data_ready = 0;
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if(GPIO_Pin == LASER_INT_Pin) {
+    data_ready = 1;
+  }
+}
+
+void reset_laser_int(){
+  data_ready = 0;
+  status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
+}
+
+
 
 /* USER CODE END 0 */
 
@@ -83,7 +97,6 @@ int main(void)
   uint16_t AmbientRate;
   uint16_t SpadNum; 
   uint8_t RangeStatus;
-  uint8_t data_ready = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -135,26 +148,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    while(data_ready == 0){
-      status = VL53L1X_CheckForDataReady(dev, &data_ready);
-      HAL_Delay(2);
+    if (data_ready){
+      status = VL53L1X_GetRangeStatus(dev, &RangeStatus);
+      status = VL53L1X_GetDistance(dev, &Distance);
+      status = VL53L1X_GetSignalRate(dev, &SignalRate);
+      status = VL53L1X_GetAmbientRate(dev, &AmbientRate);
+      status = VL53L1X_GetSpadNb(dev, &SpadNum);
+      sprintf(uart_buf ,  "\n-----\n"
+                          "range_status = %u\n"
+                          "distance = %u\n"
+                          "signal_rate = %u\n"
+                          "ambient_rate = %u\n"
+                          "spad_num = %u\n",
+              RangeStatus, Distance, SignalRate, AmbientRate,SpadNum
+      );
+      HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
+
+      reset_laser_int();
     }
-    data_ready = 0;
-    status = VL53L1X_GetRangeStatus(dev, &RangeStatus);
-	  status = VL53L1X_GetDistance(dev, &Distance);
-	  status = VL53L1X_GetSignalRate(dev, &SignalRate);
-	  status = VL53L1X_GetAmbientRate(dev, &AmbientRate);
-	  status = VL53L1X_GetSpadNb(dev, &SpadNum);
-	  status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
-	  sprintf(uart_buf ,  "\n-----\n"
-                        "range_status = %u\n"
-                        "distance = %u\n"
-                        "signal_rate = %u\n"
-                        "ambient_rate = %u\n"
-                        "spad_num = %u\n",
-            RangeStatus, Distance, SignalRate, AmbientRate,SpadNum
-    );
-    HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
   }
   /* USER CODE END 3 */
 }
