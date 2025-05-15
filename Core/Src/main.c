@@ -77,6 +77,32 @@ void reset_laser_int(){
   status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
 }
 
+/**
+ * @brief Wake up module from hardware standby mode (no i2c comminucation)
+*/
+void laser_on(){
+  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_SET);
+}
+/**
+ * @brief Make module into hardware standby mode
+*/
+void laser_off(){
+  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_RESET); // turn off
+}
+
+/**
+ * 
+ */
+VL53L1X_ERROR laser_init(uint16_t dev/* , uint32_t timeout_ms */){
+  uint8_t state = 1;
+  while(state){
+    //TODO: timeout
+    status = VL53L1X_BootState(dev, &state);
+    DEBUG_transmit_fmt("status = %d", status);
+    HAL_Delay(5);
+  }
+  VL53L1X_SensorInit(dev);
+}
 
 
 /* USER CODE END 0 */
@@ -123,20 +149,14 @@ int main(void)
   HAL_Delay(100);
 
   DEBUG_transmit_str("booting laser");
-  HAL_GPIO_WritePin(LASER_SHUT_GPIO_Port, LASER_SHUT_Pin, GPIO_PIN_SET); // turn on
-  uint8_t state = 1;
-  while(state){
-    status = VL53L1X_BootState(dev, &state);
-    DEBUG_transmit_fmt("status = %d", status);
-    HAL_Delay(5);
-  }
-  VL53L1X_SensorInit(dev);
+  laser_on();
+  laser_init(dev);
   DEBUG_transmit_str("inited laser");
   
-  
+  // TODO: function and structs for operate on laser
   status = VL53L1X_SetDistanceMode(dev, 2); /* 1=short, 2=long */
   // status = VL53L1X_SetTimingBudgetInMs(dev, 200); /* in ms possible values [20, 50, 100, 200, 500] */
-  status = VL53L1X_SetInterMeasurementInMs(dev, 500); /* in ms, IM must be > = TB */
+  status = VL53L1X_SetInterMeasurementInMs(dev, 500); /* in ms, IM must be > = TB */ //TODO: checher
   DEBUG_transmit_str("configured laser");
   /* USER CODE END 2 */
 
@@ -149,7 +169,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     if (data_ready){
-      status = VL53L1X_GetRangeStatus(dev, &RangeStatus);
+      status = VL53L1X_GetRangeStatus(dev, &RangeStatus); //TODO: stringify status 
       status = VL53L1X_GetDistance(dev, &Distance);
       status = VL53L1X_GetSignalRate(dev, &SignalRate);
       status = VL53L1X_GetAmbientRate(dev, &AmbientRate);
