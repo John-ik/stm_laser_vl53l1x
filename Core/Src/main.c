@@ -43,6 +43,7 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -52,6 +53,9 @@ uint16_t dev = 0x52;
 int status = 0;
 
 char uart_buf[256];
+
+static const uint16_t time_budgets[] = {20, 50, 100, 200, 500};
+static uint8_t current_budget = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,8 +106,30 @@ VL53L1X_ERROR laser_init(uint16_t dev/* , uint32_t timeout_ms */){
     HAL_Delay(5);
   }
   VL53L1X_SensorInit(dev);
+  return 0;
 }
 
+uint8_t uart_command = '\0';
+uint8_t uart_flag = 0;
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+  if (huart == &huart1){
+    uart_flag = 1;
+  }
+}
+
+void send_CSV_header(){
+  sprintf(uart_buf, "%s;%s;%s;%s;%s;%s;%s;%s\n",
+    "time",        "dist_mode", "budget",    "signal_rate", "ambient_rate", "spad_num", "status", "dist"
+  );
+  HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
+}
+
+void send_CSV_data(uint8_t dist_mode, uint16_t time_budget, uint8_t status, uint16_t dist, uint16_t signal_rate, uint16_t ambient_rate, uint16_t spad_num){
+  sprintf(uart_buf, "%lu;%u;%u;%u;%u;%u;%u;%u\n",
+    HAL_GetTick(), dist_mode,   time_budget, signal_rate,   ambient_rate,   spad_num,   status,   dist
+  );
+  HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
+}
 
 /* USER CODE END 0 */
 
@@ -118,6 +144,7 @@ int main(void)
   uint8_t byteData, sensorState=0;
   uint16_t wordData;
   uint8_t ToFSensor = 1; // 0=Left, 1=Center(default), 2=Right
+  uint16_t dist_mode;
   uint16_t Distance;
   uint16_t SignalRate;
   uint16_t AmbientRate;
@@ -148,20 +175,22 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_Delay(100);
 
-  DEBUG_transmit_str("booting laser");
+  DEBUG_transmit_str("# booting laser");
   laser_on();
   laser_init(dev);
-  DEBUG_transmit_str("inited laser");
+  DEBUG_transmit_str("# inited laser");
   
   // TODO: function and structs for operate on laser
   status = VL53L1X_SetDistanceMode(dev, 2); /* 1=short, 2=long */
-  // status = VL53L1X_SetTimingBudgetInMs(dev, 200); /* in ms possible values [20, 50, 100, 200, 500] */
+  status = VL53L1X_SetTimingBudgetInMs(dev, time_budgets[current_budget]); /* in ms possible values [20, 50, 100, 200, 500] */
   status = VL53L1X_SetInterMeasurementInMs(dev, 500); /* in ms, IM must be > = TB */ //TODO: checher
-  DEBUG_transmit_str("configured laser");
+  DEBUG_transmit_str("# configured laser");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  send_CSV_header();
+  HAL_UART_Receive_IT(&huart1, &uart_command, 1);
   status = VL53L1X_StartRanging(dev);
   while (1)
   {
@@ -169,22 +198,39 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     if (data_ready){
+      status = VL53L1X_GetDistanceMode(dev, &dist_mode);
+
       status = VL53L1X_GetRangeStatus(dev, &RangeStatus); //TODO: stringify status 
       status = VL53L1X_GetDistance(dev, &Distance);
       status = VL53L1X_GetSignalRate(dev, &SignalRate);
       status = VL53L1X_GetAmbientRate(dev, &AmbientRate);
       status = VL53L1X_GetSpadNb(dev, &SpadNum);
-      sprintf(uart_buf ,  "\n-----\n"
-                          "range_status = %u\n"
-                          "distance = %u\n"
-                          "signal_rate = %u\n"
-                          "ambient_rate = %u\n"
-                          "spad_num = %u\n",
-              RangeStatus, Distance, SignalRate, AmbientRate,SpadNum
-      );
-      HAL_UART_Transmit(&huart1, (uint8_t*) uart_buf, strlen(uart_buf), 100);
+      
+      send_CSV_data(dist_mode, time_budgets[current_budget], RangeStatus, Distance, SignalRate, AmbientRate, SpadNum);
 
       reset_laser_int();
+    }
+
+    // process uart_command
+    if (uart_flag){
+      status = VL53L1X_StopRanging(dev);
+
+      if (uart_command == '1'){
+        status = VL53L1X_SetDistanceMode(dev, 1); /* 1=short, 2=long */
+      }else if (uart_command == '2'){
+        status = VL53L1X_SetDistanceMode(dev, 2); /* 1=short, 2=long */
+      }else if (uart_command == '3'){
+        if (current_budget == sizeof(time_budgets)/sizeof(time_budgets[0]) - 1)
+          current_budget = -1;
+        status = VL53L1X_SetTimingBudgetInMs(dev, time_budgets[++current_budget]);
+      }
+
+      // restart ranging
+      status = VL53L1X_StartRanging(dev);
+
+      // reset uart rx
+      uart_flag = 0;
+      HAL_UART_Receive_IT(&huart1, &uart_command, 1);
     }
   }
   /* USER CODE END 3 */
